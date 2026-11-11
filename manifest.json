@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Pixel OCR — Select & Copy",
+  "short_name": "Pixel OCR",
+  "version": "1.0.0",
+  "description": "Drag-select any part of a page, recognize the text from pixels, then edit and copy it. Fully offline.",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "offscreen"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Select an area to OCR (Alt+Shift+S)",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "commands": {
+    "capture-region": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "Select an area and OCR it"
+    }
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
+}
