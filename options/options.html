@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pixel OCR — Lookup types</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <header class="page-head">
+      <div>
+        <h1>Lookup types</h1>
+        <p class="lede">
+          Choose how Pixel OCR turns a detected value into a lookup link. Chips in the
+          result panel follow this order. The shipped templates are examples — replace
+          <code>example.com</code> with your real lookup URLs.
+        </p>
+      </div>
+    </header>
+
+    <main>
+      <section class="types" aria-label="Lookup types">
+        <div class="rows-head" aria-hidden="true">
+          <span></span>
+          <span>Name</span>
+          <span>Link template</span>
+          <span>Cleaning</span>
+          <span>Actions</span>
+        </div>
+        <div id="rows" class="rows"></div>
+        <p id="empty" class="empty" hidden>No types yet. Use “Add type” to create one.</p>
+      </section>
+
+      <div class="add-row">
+        <button id="add" class="button" type="button">+ Add type</button>
+        <span class="hint">New types use the ID cleaning mode by default.</span>
+      </div>
+
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+      <p id="error" class="error" role="alert"></p>
+
+      <section class="actions" aria-label="Save and backup">
+        <button id="save" class="button primary" type="button">Save</button>
+        <button id="reset" class="button danger-quiet" type="button">Reset to defaults</button>
+        <span class="spacer"></span>
+        <button id="export" class="button" type="button">Export JSON</button>
+        <label class="button file-button">
+          Import JSON
+          <input id="import" type="file" accept="application/json,.json" hidden />
+        </label>
+      </section>
+
+      <section class="help">
+        <h2>How templates work</h2>
+        <p>
+          Put <code>{value}</code> anywhere in the URL, for example
+          <code>https://example.com/merchant?id={value}</code>. With no placeholder, the
+          cleaned value is appended to the end, for example
+          <code>https://example.com/parcel/</code> + <code>ABC123</code>.
+        </p>
+        <p>
+          <strong>ID</strong> keeps letters, digits, <code>-</code> and <code>_</code>.
+          <strong>Phone</strong> normalizes Bangladeshi numbers such as
+          <code>+880 1712-345678</code> to <code>01712345678</code>.
+          <strong>Raw text</strong> only trims outer whitespace.
+        </p>
+      </section>
+    </main>
+
+    <script src="../lib/links.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

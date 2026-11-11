@@ -14,7 +14,11 @@
 
 'use strict';
 
-const OVERLAY_FILE = 'content/overlay.js';
+importScripts(chrome.runtime.getURL('lib/links.js'));
+
+const Links = globalThis.PixelOcrLinks;
+
+const OVERLAY_FILES = ['lib/links.js', 'content/overlay.js'];
 const OFFSCREEN_PATH = 'offscreen/offscreen.html';
 const OFFSCREEN_URL = chrome.runtime.getURL(OFFSCREEN_PATH);
 
@@ -89,7 +93,7 @@ async function startCapture(tab) {
   try {
     await chrome.scripting.executeScript({
       target: { tabId, allFrames: false },
-      files: [OVERLAY_FILE],
+      files: OVERLAY_FILES,
     });
   } catch (err) {
     console.warn('[Pixel OCR] Injection failed:', err);
@@ -214,6 +218,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         console.warn('[Pixel OCR] Re-OCR failed:', err);
         sendResponse({ ok: false, error: friendlyError(err) });
       });
+    return true;
+  }
+
+  if (message.type === 'PIXEL_OCR_OPEN_URL') {
+    handleOpenLookup(message)
+      .then(sendResponse)
+      .catch((err) => sendResponse({ ok: false, error: friendlyError(err) }));
+    return true;
+  }
+
+  if (message.type === 'PIXEL_OCR_OPEN_OPTIONS') {
+    chrome.runtime
+      .openOptionsPage()
+      .then(() => sendResponse({ ok: true }))
+      .catch((err) => sendResponse({ ok: false, error: String(err && err.message) }));
     return true;
   }
 
@@ -354,6 +373,53 @@ async function handleReocrRequest(sender, message) {
     activeOcrRequests.delete(requestId);
     scheduleOffscreenClose(false);
   }
+}
+
+/**
+ * Builds a lookup URL from the *saved* template and the edited value, then
+ * opens it. The content script's preview is never trusted as a URL: only the
+ * stored template can decide the destination, and OCR text is only a value.
+ */
+async function handleOpenLookup(message) {
+  const typeId = message && typeof message.typeId === 'string' ? message.typeId : '';
+  const text = message && typeof message.text === 'string' ? message.text : '';
+  if (!typeId) throw new Error('Choose a lookup type first.');
+  if (!text.trim()) throw new Error('Enter a value to look up.');
+
+  const types = await Links.loadTypes();
+  const type = types.find((item) => item.id === typeId);
+  if (!type) {
+    throw new Error('That lookup type no longer exists. Choose another type or update Options.');
+  }
+
+  const cleaned = Links.cleanValue(text, type.cleaning);
+  if (!cleaned.value) {
+    throw new Error('There is nothing to look up after cleaning this value.');
+  }
+
+  const url = Links.buildUrl(type.template, cleaned.value);
+  if (!url) {
+    throw new Error('This type does not have a valid link template. Set it in Options.');
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error('The lookup URL was not valid.');
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error('Only http(s) lookup links can be opened.');
+  }
+
+  await chrome.tabs.create({ url: parsed.href, active: true });
+  void Links.saveLastTypeId(type.id);
+  return {
+    ok: true,
+    url: parsed.href,
+    usedFirstValue: cleaned.usedFirstValue,
+    invalidPhone: cleaned.invalidPhone,
+  };
 }
 
 function normalizeRect(value) {

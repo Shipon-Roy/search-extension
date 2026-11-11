@@ -19,6 +19,11 @@
     return;
   }
 
+  const LinkTools = window.PixelOcrLinks;
+  if (!LinkTools) {
+    console.warn('[Pixel OCR] Lookup helpers failed to load.');
+  }
+
   const HOST_ID = 'pixel-ocr-overlay-host';
   const Z_INDEX = '2147483647';
   const MIN_SELECTION = 5;
@@ -42,6 +47,15 @@
 
   let copyFlashTimer = null;
   let watchdogTimer = null;
+
+  let lookupTypes = [];
+  let lastUsedTypeId = '';
+  let selectedTypeId = '';
+  let settingsLoaded = false;
+  let settingsLoadPromise = null;
+  let settingsGeneration = 0;
+  let settingsError = '';
+  let lookupToken = 0;
 
   const api = {
     restart: () => startSelection(),
@@ -180,8 +194,8 @@
           top: 0;
           display: none;
           flex-direction: column;
-          width: min(380px, calc(100vw - 16px));
-          max-height: min(520px, calc(100vh - 16px));
+          width: min(430px, calc(100vw - 16px));
+          max-height: min(640px, calc(100vh - 16px));
           padding: 0;
           border: 1px solid var(--po-border);
           border-radius: 12px;
@@ -297,6 +311,101 @@
         .hintline.is-error { color: var(--po-danger); }
         .hintline.is-success { color: var(--po-success); }
 
+        .lookup {
+          display: none;
+          flex-direction: column;
+          gap: 7px;
+          padding-top: 2px;
+        }
+        .lookup-head {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .lookup-title {
+          flex: 1 1 auto;
+          color: var(--po-muted);
+          font: 650 10.5px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+          letter-spacing: 0.055em;
+          text-transform: uppercase;
+        }
+        .link-btn {
+          padding: 1px 2px;
+          border: 0;
+          background: transparent;
+          color: var(--po-accent);
+          font: 600 11.5px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+          cursor: pointer;
+        }
+        .link-btn:hover { text-decoration: underline; }
+        .link-btn:focus-visible { outline: 2px solid var(--po-accent); outline-offset: 1px; }
+
+        .chips {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+        .chip {
+          max-width: 100%;
+          padding: 4px 9px;
+          border: 1px solid var(--po-border);
+          border-radius: 999px;
+          background: var(--po-field);
+          color: var(--po-fg);
+          font: 600 11.5px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          cursor: pointer;
+        }
+        .chip:hover { border-color: var(--po-accent); }
+        .chip:focus-visible { outline: 2px solid var(--po-accent); outline-offset: 1px; }
+        .chip[aria-checked="true"] {
+          border-color: transparent;
+          background: var(--po-accent);
+          color: var(--po-accent-fg);
+        }
+
+        .type-empty {
+          margin: 0;
+          padding: 2px 0;
+          color: var(--po-muted);
+          font: 400 12px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        }
+
+        .notice-line {
+          margin: 0;
+          color: var(--po-danger);
+          font: 500 11.5px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+          overflow-wrap: anywhere;
+        }
+
+        .preview {
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+          min-width: 0;
+        }
+        .preview-label {
+          color: var(--po-muted);
+          font: 500 10.5px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+          letter-spacing: 0.03em;
+        }
+        .url-preview {
+          width: 100%;
+          padding: 5px 8px;
+          border: 1px solid var(--po-border);
+          border-radius: 6px;
+          background: var(--po-field);
+          color: var(--po-fg);
+          font: 400 11.5px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          user-select: all;
+        }
+        .url-preview.is-empty { color: var(--po-muted); }
+
         .panel-foot {
           display: flex;
           align-items: center;
@@ -359,6 +468,7 @@
       <section class="panel" role="dialog" aria-label="Recognized text" aria-modal="false">
         <div class="panel-head">
           <h2 class="panel-title">Recognized text</h2>
+          <button class="icon-btn" type="button" data-action="options" title="Lookup types options" aria-label="Options">⚙</button>
           <button class="icon-btn" type="button" data-action="close" title="Close (Esc)" aria-label="Close">×</button>
         </div>
         <div class="panel-body">
@@ -372,6 +482,20 @@
             <p class="message-detail"></p>
           </div>
           <p class="hintline" role="status" aria-live="polite"></p>
+
+          <section class="lookup" aria-label="Lookup link">
+            <div class="lookup-head">
+              <span class="lookup-title">Look up as</span>
+              <button class="link-btn" type="button" data-action="options">Edit types</button>
+            </div>
+            <div class="chips" role="radiogroup" aria-label="Lookup type"></div>
+            <p class="type-empty" hidden>Add a type in Options.</p>
+            <p class="notice-line" role="status" aria-live="polite"></p>
+            <div class="preview">
+              <span class="preview-label">Link preview</span>
+              <div class="url-preview is-empty" tabindex="0" role="textbox" aria-readonly="true" aria-label="Link preview"></div>
+            </div>
+          </section>
         </div>
         <div class="panel-foot">
           <label class="numbers">
@@ -379,7 +503,8 @@
             <span>Numbers only</span>
           </label>
           <button class="action" type="button" data-action="retry">Retry</button>
-          <button class="action primary" type="button" data-action="copy" disabled>Copy</button>
+          <button class="action" type="button" data-action="copy" disabled>Copy</button>
+          <button class="action primary" type="button" data-action="open" disabled>Open in new tab</button>
         </div>
       </section>
     `;
@@ -401,12 +526,30 @@
       copyBtn: shadow.querySelector('button[data-action="copy"]'),
       retryBtn: shadow.querySelector('button[data-action="retry"]'),
       closeBtn: shadow.querySelector('button[data-action="close"]'),
+      optionsBtns: shadow.querySelectorAll('button[data-action="options"]'),
+      lookup: shadow.querySelector('.lookup'),
+      chips: shadow.querySelector('.chips'),
+      typeEmpty: shadow.querySelector('.type-empty'),
+      notice: shadow.querySelector('.notice-line'),
+      previewWrap: shadow.querySelector('.preview'),
+      preview: shadow.querySelector('.url-preview'),
+      openBtn: shadow.querySelector('button[data-action="open"]'),
     };
 
     refs.closeBtn.addEventListener('click', () => cancelOverlay());
     refs.retryBtn.addEventListener('click', () => startSelection());
     refs.copyBtn.addEventListener('click', () => void handleCopyClick());
     refs.numbers.addEventListener('change', () => void rerunWithNumbers());
+    refs.openBtn.addEventListener('click', () => void openLookup());
+    refs.optionsBtns.forEach((button) =>
+      button.addEventListener('click', () => void openOptionsPage()),
+    );
+    refs.textarea.addEventListener('input', () => updateLookupPreview());
+    refs.textarea.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
+      event.preventDefault();
+      void openLookup();
+    });
 
     const root = document.fullscreenElement || document.documentElement;
     root.appendChild(host);
@@ -418,6 +561,8 @@
 
   function startSelection() {
     cancelOverlay({ preserveGlobal: true });
+    lookupToken += 1;
+    settingsError = '';
     state = 'selecting';
     dragStart = null;
     dragCurrent = null;
@@ -442,6 +587,8 @@
     refs.numbers.checked = false;
     refs.numbers.disabled = false;
     refs.copyBtn.disabled = true;
+    refs.openBtn.disabled = true;
+    hideLookup();
     resetCopyButton();
 
     keyAC = new AbortController();
@@ -706,6 +853,8 @@
     refs.hintline.style.display = 'none';
     refs.numbers.disabled = false;
     refs.copyBtn.disabled = true;
+    refs.openBtn.disabled = true;
+    hideLookup();
     resetCopyButton();
     placePanel();
   }
@@ -725,6 +874,8 @@
       refs.textarea.value = '';
       refs.textarea.style.display = 'none';
       refs.copyBtn.disabled = true;
+      refs.openBtn.disabled = true;
+      hideLookup();
       refs.message.classList.remove('is-error');
       refs.messageTitle.textContent = 'No text detected';
       refs.messageDetail.textContent = lastNumbersOnly
@@ -751,6 +902,7 @@
     // Focus the field (without scrolling), then attempt the automatic copy.
     refs.textarea.focus({ preventScroll: true });
     void autoCopy(text);
+    void setupLookup(text);
   }
 
   function showErrorPanel(title, detail) {
@@ -767,6 +919,8 @@
     refs.messageDetail.textContent = detail || 'Please try again.';
     refs.hintline.style.display = 'none';
     refs.copyBtn.disabled = true;
+    refs.openBtn.disabled = true;
+    hideLookup();
     refs.numbers.disabled = true;
     resetCopyButton();
     refs.retryBtn.disabled = false;
@@ -940,6 +1094,218 @@
       }
     }
     return ok;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Lookup types, chips, and URL preview                              */
+  /* ---------------------------------------------------------------- */
+
+  function hideLookup() {
+    if (!refs || !refs.lookup) return;
+    refs.lookup.style.display = 'none';
+    refs.notice.textContent = '';
+    refs.notice.style.display = 'none';
+    refs.openBtn.disabled = true;
+  }
+
+  function getSelectedType() {
+    return lookupTypes.find((type) => type.id === selectedTypeId) || null;
+  }
+
+  function chooseTypeForText(text) {
+    if (!lookupTypes.length) return '';
+    const phoneType = lookupTypes.find((type) => type.cleaning === 'Phone');
+    if (phoneType && LinkTools && LinkTools.looksLikeBdPhone(text)) return phoneType.id;
+    if (selectedTypeId && lookupTypes.some((type) => type.id === selectedTypeId)) {
+      return selectedTypeId;
+    }
+    if (lastUsedTypeId && lookupTypes.some((type) => type.id === lastUsedTypeId)) {
+      return lastUsedTypeId;
+    }
+    return lookupTypes[0].id;
+  }
+
+  function ensureSettingsLoaded() {
+    if (settingsLoaded) return Promise.resolve(true);
+    if (!LinkTools) {
+      settingsError = 'Lookup settings are unavailable on this page.';
+      return Promise.resolve(false);
+    }
+    if (!settingsLoadPromise) {
+      const generation = settingsGeneration;
+      settingsLoadPromise = LinkTools.loadSettings()
+        .then((settings) => {
+          if (generation !== settingsGeneration) return;
+          lookupTypes = settings.types;
+          lastUsedTypeId = settings.lastTypeId;
+          settingsLoaded = true;
+          settingsError = '';
+        })
+        .catch((err) => {
+          if (generation !== settingsGeneration) return;
+          settingsError = (err && err.message) || 'Could not load lookup types.';
+        })
+        .finally(() => {
+          settingsLoadPromise = null;
+        });
+    }
+    return settingsLoadPromise.then(() => settingsLoaded);
+  }
+
+  async function setupLookup(text) {
+    if (!refs) return;
+    const token = ++lookupToken;
+    refs.lookup.style.display = 'flex';
+
+    const loaded = await ensureSettingsLoaded();
+    if (token !== lookupToken || state !== 'result' || !refs) return;
+
+    if (!loaded) {
+      lookupTypes = [];
+      selectedTypeId = '';
+      renderChips();
+      updateLookupPreview();
+      return;
+    }
+
+    selectedTypeId = chooseTypeForText(text);
+    renderChips();
+    updateLookupPreview();
+  }
+
+  async function refreshLookupSettings() {
+    settingsGeneration += 1;
+    settingsLoaded = false;
+    settingsLoadPromise = null;
+    if (state !== 'result' || !refs) return;
+
+    const token = ++lookupToken;
+    const loaded = await ensureSettingsLoaded();
+    if (token !== lookupToken || state !== 'result' || !refs) return;
+
+    if (!loaded) {
+      lookupTypes = [];
+      selectedTypeId = '';
+      renderChips();
+      updateLookupPreview();
+      return;
+    }
+
+    if (!lookupTypes.some((type) => type.id === selectedTypeId)) {
+      selectedTypeId = lastUsedTypeId && lookupTypes.some((type) => type.id === lastUsedTypeId)
+        ? lastUsedTypeId
+        : (lookupTypes[0] ? lookupTypes[0].id : '');
+    }
+    renderChips();
+    updateLookupPreview();
+  }
+
+  function renderChips() {
+    if (!refs) return;
+    refs.chips.replaceChildren();
+    refs.typeEmpty.hidden = lookupTypes.length > 0;
+    refs.previewWrap.style.display = lookupTypes.length ? 'flex' : 'none';
+
+    if (!lookupTypes.length) {
+      refs.notice.textContent = settingsError || '';
+      refs.notice.style.display = settingsError ? 'block' : 'none';
+      return;
+    }
+
+    for (const type of lookupTypes) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip';
+      chip.setAttribute('role', 'radio');
+      chip.setAttribute('aria-checked', String(type.id === selectedTypeId));
+      chip.title = type.name;
+      chip.textContent = type.name;
+      chip.addEventListener('click', () => {
+        selectedTypeId = type.id;
+        void LinkTools.saveLastTypeId(type.id);
+        renderChips();
+        updateLookupPreview();
+      });
+      refs.chips.appendChild(chip);
+    }
+  }
+
+  function updateLookupPreview() {
+    if (!refs || !refs.lookup || refs.lookup.style.display === 'none') return;
+
+    const type = getSelectedType();
+    const notices = [];
+    let url = '';
+
+    if (settingsError) notices.push('Could not load lookup types. Open Options.');
+    if (!lookupTypes.length) {
+      refs.typeEmpty.hidden = false;
+      refs.previewWrap.style.display = 'none';
+    } else {
+      refs.typeEmpty.hidden = true;
+      refs.previewWrap.style.display = 'flex';
+    }
+
+    if (type) {
+      if (LinkTools.isPlaceholderTemplate(type.template)) {
+        notices.push('Set your link in Options');
+      }
+      const cleaned = LinkTools.cleanValue(refs.textarea.value, type.cleaning);
+      if (cleaned.usedFirstValue) notices.push('Using first value');
+      if (cleaned.invalidPhone) notices.push("Doesn't look like a valid BD number");
+      if (cleaned.value) {
+        url = LinkTools.buildUrl(type.template, cleaned.value) || '';
+        if (!url && !LinkTools.isPlaceholderTemplate(type.template)) {
+          notices.push('Set your link in Options');
+        }
+      }
+    }
+
+    refs.notice.textContent = notices.join(' · ');
+    refs.notice.style.display = notices.length ? 'block' : 'none';
+    refs.preview.textContent = url || 'Enter a value to preview the link.';
+    refs.preview.title = url;
+    refs.preview.classList.toggle('is-empty', !url);
+    refs.openBtn.disabled = !url;
+    refs.openBtn.title = url ? `Open ${url}` : 'Enter a value to enable';
+    placePanel();
+  }
+
+  async function openLookup() {
+    if (!refs || refs.openBtn.disabled) return;
+    const type = getSelectedType();
+    if (!type) return;
+    const text = refs.textarea.value;
+    if (!text.trim()) return;
+
+    refs.openBtn.disabled = true;
+    try {
+      const response = await sendRuntimeMessage(
+        { type: 'PIXEL_OCR_OPEN_URL', typeId: type.id, text },
+        15000,
+      );
+      if (!response || !response.ok) {
+        throw new Error((response && response.error) || 'The link could not be opened.');
+      }
+      selectedTypeId = type.id;
+      void LinkTools.saveLastTypeId(type.id);
+      setHintline('Opened in a new tab.', 'success');
+    } catch (err) {
+      setHintline(`Could not open link: ${userMessage(err)}`, 'error');
+    } finally {
+      updateLookupPreview();
+    }
+  }
+
+  async function openOptionsPage() {
+    try {
+      const response = await sendRuntimeMessage({ type: 'PIXEL_OCR_OPEN_OPTIONS' }, 10000);
+      if (!response || !response.ok) {
+        throw new Error((response && response.error) || 'Options could not be opened.');
+      }
+    } catch (err) {
+      setHintline(`Could not open Options: ${userMessage(err)}`, 'error');
+    }
   }
 
   function flashCopied() {
@@ -1121,6 +1487,14 @@
     return Math.min(max, Math.max(min, value));
   }
 
-  // The overlay starts as soon as the service worker injects this file.
+  if (LinkTools && chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener((changes) => {
+      if (!changes || !changes[LinkTools.TYPES_KEY]) return;
+      void refreshLookupSettings();
+    });
+  }
+
+  // Warm the saved types while the user is still selecting, then start.
+  void ensureSettingsLoaded();
   startSelection();
 })();
