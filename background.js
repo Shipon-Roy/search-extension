@@ -1,5 +1,5 @@
 /**
- * Pixel OCR — service worker
+ * ShiponLens — service worker
  *
  * Responsibilities:
  *  - Start the capture flow from the toolbar button or the keyboard shortcut.
@@ -71,7 +71,7 @@ async function startCaptureFromActiveTab() {
     if (!tab) throw new Error('No active tab found.');
     await startCapture(tab);
   } catch (err) {
-    console.warn('[Pixel OCR] Could not start capture:', err);
+    console.warn('[ShiponLens] Could not start capture:', err);
   }
 }
 
@@ -96,7 +96,7 @@ async function startCapture(tab) {
       files: OVERLAY_FILES,
     });
   } catch (err) {
-    console.warn('[Pixel OCR] Injection failed:', err);
+    console.warn('[ShiponLens] Injection failed:', err);
     await showErrorBadge(tabId, injectionErrorMessage(err));
   }
 }
@@ -126,7 +126,7 @@ function restrictedPageMessage(url) {
 function injectionErrorMessage(err) {
   const raw = err && err.message ? err.message : String(err);
   if (/file:\/\//i.test(raw)) {
-    return 'To use Pixel OCR on local files, enable “Allow access to file URLs” on chrome://extensions.';
+    return 'To use ShiponLens on local files, enable “Allow access to file URLs” on chrome://extensions.';
   }
   if (/extensions gallery|chrome web store/i.test(raw)) {
     return 'Chrome does not allow extensions to run on the Chrome Web Store.';
@@ -146,7 +146,7 @@ async function showErrorBadge(tabId, message) {
     clearBadgeTimer(tabId);
     await chrome.action.setBadgeBackgroundColor({ tabId, color: '#c62828' });
     await chrome.action.setBadgeText({ tabId, text: '!' });
-    await chrome.action.setTitle({ tabId, title: `Pixel OCR: ${message}` });
+    await chrome.action.setTitle({ tabId, title: `ShiponLens: ${message}` });
     const timer = setTimeout(() => {
       badgeTimers.delete(tabId);
       void clearBadge(tabId, true);
@@ -154,7 +154,7 @@ async function showErrorBadge(tabId, message) {
     badgeTimers.set(tabId, timer);
   } catch (err) {
     // Badge APIs can fail on some restricted tabs; nothing else to do.
-    console.warn('[Pixel OCR] Could not show badge:', err);
+    console.warn('[ShiponLens] Could not show badge:', err);
   }
 }
 
@@ -205,7 +205,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleCaptureRequest(sender, message)
       .then(sendResponse)
       .catch((err) => {
-        console.warn('[Pixel OCR] Capture failed:', err);
+        console.warn('[ShiponLens] Capture failed:', err);
         sendResponse({ ok: false, error: friendlyError(err) });
       });
     return true;
@@ -215,7 +215,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleReocrRequest(sender, message)
       .then(sendResponse)
       .catch((err) => {
-        console.warn('[Pixel OCR] Re-OCR failed:', err);
+        console.warn('[ShiponLens] Re-OCR failed:', err);
         sendResponse({ ok: false, error: friendlyError(err) });
       });
     return true;
@@ -377,8 +377,8 @@ async function handleReocrRequest(sender, message) {
 
 /**
  * Builds a lookup URL from the *saved* template and the edited value, then
- * opens it. The content script's preview is never trusted as a URL: only the
- * stored template can decide the destination, and OCR text is only a value.
+ * opens it. The panel never sends a URL: only the stored template can decide
+ * the destination, and OCR text is only a value.
  */
 async function handleOpenLookup(message) {
   const typeId = message && typeof message.typeId === 'string' ? message.typeId : '';
@@ -565,7 +565,7 @@ async function closeOffscreen() {
       await chrome.offscreen.closeDocument();
     }
   } catch (err) {
-    console.warn('[Pixel OCR] Could not close the offscreen document:', err);
+    console.warn('[ShiponLens] Could not close the offscreen document:', err);
   }
 }
 

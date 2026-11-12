@@ -274,10 +274,6 @@ code {
   border-top: 1px solid var(--border);
 }
 
-.spacer { flex: 1 1 auto; }
-
-.file-button { cursor: pointer; }
-
 .help {
   margin: 0 0 40px;
   padding: 16px 18px;

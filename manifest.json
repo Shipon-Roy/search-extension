@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Pixel OCR — Select & Copy",
-  "short_name": "Pixel OCR",
+  "name": "ShiponLens — Select & Copy",
+  "short_name": "ShiponLens",
   "version": "1.0.0",
   "description": "Drag-select any part of a page, recognize the text from pixels, then edit and copy it. Fully offline.",
   "minimum_chrome_version": "116",

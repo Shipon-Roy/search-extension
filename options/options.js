@@ -11,8 +11,6 @@
   const addBtn = document.getElementById('add');
   const saveBtn = document.getElementById('save');
   const resetBtn = document.getElementById('reset');
-  const exportBtn = document.getElementById('export');
-  const importInput = document.getElementById('import');
   const statusEl = document.getElementById('status');
   const errorEl = document.getElementById('error');
 
@@ -349,57 +347,9 @@
     if (await persist('Defaults restored.')) pruneLastType();
   }
 
-  function exportJson() {
-    if (!validateAll()) return;
-    try {
-      const text = Links.exportTypes(types);
-      const blob = new Blob([text], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = 'pixel-ocr-lookup-types.json';
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
-      setStatus(`Exported ${types.length} type${types.length === 1 ? '' : 's'}.`);
-    } catch (err) {
-      setError(`Could not export: ${err.message}`);
-    }
-  }
-
-  async function importJson(file) {
-    if (!file) return;
-    let text;
-    try {
-      text = await file.text();
-    } catch (err) {
-      setError(`Could not read the file: ${err.message}`);
-      return;
-    }
-    try {
-      const imported = Links.parseImport(text);
-      const saved = await Links.saveTypes(imported);
-      types = saved.types;
-      render();
-      await pruneLastType();
-      setStatus(`Imported ${types.length} type${types.length === 1 ? '' : 's'}.`);
-    } catch (err) {
-      // Existing types are deliberately left untouched.
-      setError(`Import failed: ${err.message} Existing types were not changed.`);
-    }
-  }
-
   addBtn.addEventListener('click', addType);
   saveBtn.addEventListener('click', () => void save());
   resetBtn.addEventListener('click', () => void resetToDefaults());
-  exportBtn.addEventListener('click', exportJson);
-  importInput.addEventListener('change', () => {
-    const file = importInput.files && importInput.files[0];
-    void importJson(file).finally(() => {
-      importInput.value = '';
-    });
-  });
   document.addEventListener('keydown', (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
       event.preventDefault();

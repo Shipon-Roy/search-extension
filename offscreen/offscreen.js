@@ -1,5 +1,5 @@
 /**
- * Pixel OCR — offscreen document
+ * ShiponLens — offscreen document
  *
  * Runs the bundled Tesseract.js worker (so the host page's CSP cannot block
  * it), preprocesses the cropped pixels, and returns recognized text.
@@ -43,7 +43,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     enqueue(() => handleOcr(message))
       .then((result) => sendResponse(result))
       .catch((err) => {
-        console.error('[Pixel OCR] OCR failed:', err);
+        console.error('[ShiponLens] OCR failed:', err);
         sendResponse({ ok: false, error: friendlyError(err) });
       });
     return true;
@@ -198,7 +198,7 @@ async function getWorker() {
         }
       },
       errorHandler: (err) => {
-        console.error('[Pixel OCR] Tesseract worker error:', err);
+        console.error('[ShiponLens] Tesseract worker error:', err);
       },
     })
       .then((created) => {

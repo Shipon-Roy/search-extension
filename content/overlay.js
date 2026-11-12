@@ -1,5 +1,5 @@
 /**
- * Pixel OCR — selection overlay and result panel.
+ * ShiponLens — selection overlay and result panel.
  *
  * This file is injected on demand by the service worker. It deliberately does
  * not run as a permanent content script: it only exists after the user asks for
@@ -21,7 +21,7 @@
 
   const LinkTools = window.PixelOcrLinks;
   if (!LinkTools) {
-    console.warn('[Pixel OCR] Lookup helpers failed to load.');
+    console.warn('[ShiponLens] Lookup helpers failed to load.');
   }
 
   const HOST_ID = 'pixel-ocr-overlay-host';
@@ -194,7 +194,7 @@
           top: 0;
           display: none;
           flex-direction: column;
-          width: min(430px, calc(100vw - 16px));
+          width: min(530px, calc(100vw - 16px));
           max-height: min(640px, calc(100vh - 16px));
           padding: 0;
           border: 1px solid var(--po-border);
@@ -380,32 +380,6 @@
           overflow-wrap: anywhere;
         }
 
-        .preview {
-          display: flex;
-          flex-direction: column;
-          gap: 3px;
-          min-width: 0;
-        }
-        .preview-label {
-          color: var(--po-muted);
-          font: 500 10.5px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-          letter-spacing: 0.03em;
-        }
-        .url-preview {
-          width: 100%;
-          padding: 5px 8px;
-          border: 1px solid var(--po-border);
-          border-radius: 6px;
-          background: var(--po-field);
-          color: var(--po-fg);
-          font: 400 11.5px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          user-select: all;
-        }
-        .url-preview.is-empty { color: var(--po-muted); }
-
         .panel-foot {
           display: flex;
           align-items: center;
@@ -468,7 +442,7 @@
       <section class="panel" role="dialog" aria-label="Recognized text" aria-modal="false">
         <div class="panel-head">
           <h2 class="panel-title">Recognized text</h2>
-          <button class="icon-btn" type="button" data-action="options" title="Lookup types options" aria-label="Options">⚙</button>
+          <button class="icon-btn" type="button" data-action="options" title="ShiponLens ControlBoard options" aria-label="Options">⚙</button>
           <button class="icon-btn" type="button" data-action="close" title="Close (Esc)" aria-label="Close">×</button>
         </div>
         <div class="panel-body">
@@ -491,10 +465,6 @@
             <div class="chips" role="radiogroup" aria-label="Lookup type"></div>
             <p class="type-empty" hidden>Add a type in Options.</p>
             <p class="notice-line" role="status" aria-live="polite"></p>
-            <div class="preview">
-              <span class="preview-label">Link preview</span>
-              <div class="url-preview is-empty" tabindex="0" role="textbox" aria-readonly="true" aria-label="Link preview"></div>
-            </div>
           </section>
         </div>
         <div class="panel-foot">
@@ -531,8 +501,6 @@
       chips: shadow.querySelector('.chips'),
       typeEmpty: shadow.querySelector('.type-empty'),
       notice: shadow.querySelector('.notice-line'),
-      previewWrap: shadow.querySelector('.preview'),
-      preview: shadow.querySelector('.url-preview'),
       openBtn: shadow.querySelector('button[data-action="open"]'),
     };
 
@@ -544,7 +512,7 @@
     refs.optionsBtns.forEach((button) =>
       button.addEventListener('click', () => void openOptionsPage()),
     );
-    refs.textarea.addEventListener('input', () => updateLookupPreview());
+    refs.textarea.addEventListener('input', () => updateLookupState());
     refs.textarea.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
       event.preventDefault();
@@ -1097,7 +1065,7 @@
   }
 
   /* ---------------------------------------------------------------- */
-  /* Lookup types, chips, and URL preview                              */
+  /* ShiponLens ControlBoard, chips, and notices                                 */
   /* ---------------------------------------------------------------- */
 
   function hideLookup() {
@@ -1143,7 +1111,7 @@
         })
         .catch((err) => {
           if (generation !== settingsGeneration) return;
-          settingsError = (err && err.message) || 'Could not load lookup types.';
+          settingsError = (err && err.message) || 'Could not load ShiponLens ControlBoard.';
         })
         .finally(() => {
           settingsLoadPromise = null;
@@ -1164,13 +1132,13 @@
       lookupTypes = [];
       selectedTypeId = '';
       renderChips();
-      updateLookupPreview();
+      updateLookupState();
       return;
     }
 
     selectedTypeId = chooseTypeForText(text);
     renderChips();
-    updateLookupPreview();
+    updateLookupState();
   }
 
   async function refreshLookupSettings() {
@@ -1187,7 +1155,7 @@
       lookupTypes = [];
       selectedTypeId = '';
       renderChips();
-      updateLookupPreview();
+      updateLookupState();
       return;
     }
 
@@ -1197,14 +1165,13 @@
         : (lookupTypes[0] ? lookupTypes[0].id : '');
     }
     renderChips();
-    updateLookupPreview();
+    updateLookupState();
   }
 
   function renderChips() {
     if (!refs) return;
     refs.chips.replaceChildren();
     refs.typeEmpty.hidden = lookupTypes.length > 0;
-    refs.previewWrap.style.display = lookupTypes.length ? 'flex' : 'none';
 
     if (!lookupTypes.length) {
       refs.notice.textContent = settingsError || '';
@@ -1224,27 +1191,21 @@
         selectedTypeId = type.id;
         void LinkTools.saveLastTypeId(type.id);
         renderChips();
-        updateLookupPreview();
+        updateLookupState();
       });
       refs.chips.appendChild(chip);
     }
   }
 
-  function updateLookupPreview() {
+  function updateLookupState() {
     if (!refs || !refs.lookup || refs.lookup.style.display === 'none') return;
 
     const type = getSelectedType();
     const notices = [];
     let url = '';
 
-    if (settingsError) notices.push('Could not load lookup types. Open Options.');
-    if (!lookupTypes.length) {
-      refs.typeEmpty.hidden = false;
-      refs.previewWrap.style.display = 'none';
-    } else {
-      refs.typeEmpty.hidden = true;
-      refs.previewWrap.style.display = 'flex';
-    }
+    if (settingsError) notices.push('Could not load ShiponLens ControlBoard. Open Options.');
+    refs.typeEmpty.hidden = lookupTypes.length > 0;
 
     if (type) {
       if (LinkTools.isPlaceholderTemplate(type.template)) {
@@ -1263,9 +1224,6 @@
 
     refs.notice.textContent = notices.join(' · ');
     refs.notice.style.display = notices.length ? 'block' : 'none';
-    refs.preview.textContent = url || 'Enter a value to preview the link.';
-    refs.preview.title = url;
-    refs.preview.classList.toggle('is-empty', !url);
     refs.openBtn.disabled = !url;
     refs.openBtn.title = url ? `Open ${url}` : 'Enter a value to enable';
     placePanel();
@@ -1293,7 +1251,7 @@
     } catch (err) {
       setHintline(`Could not open link: ${userMessage(err)}`, 'error');
     } finally {
-      updateLookupPreview();
+      updateLookupState();
     }
   }
 
